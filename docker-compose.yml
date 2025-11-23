@@ -46,7 +46,7 @@ services:
       - "traefik.http.routers.ph-api.entrypoints=websecure"
       - "traefik.http.routers.ph-api.tls=true"
       - "traefik.http.services.ph-api.loadbalancer.server.port=8000"
-      - "traefik.http.routers.ph-api.priority=100"
+      - "traefik.http.routers.ph-api.priority=1"
 
   redis:
     image: redis:7-alpine
