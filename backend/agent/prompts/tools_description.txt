@@ -66,7 +66,7 @@ Tienes acceso a las siguientes herramientas para ayudar a los usuarios. Úsalas 
    - "lista los recuerdos de la hackaton"
    Nota: Para un resumen completo y elaborado, usa summarize_event en su lugar
 
-7. summarize_event ⭐ (TOOL ESTRELLA - El gran final)
+7. summarize_event (TOOL ESTRELLA - El gran final)
    ¿Qué hace?: Genera un resumen COMPLETO y elaborado de todo un evento
    ¿Cuándo usarla?:
    - Usuario pide un "resumen" del evento

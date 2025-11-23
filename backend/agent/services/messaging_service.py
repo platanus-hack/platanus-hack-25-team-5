@@ -463,11 +463,16 @@ También puedes enviarme fotos directamente 📸"""
 
         print(f"[MESSAGING_SERVICE] Agent response: {agent_response[:100]}...")
 
+        # Disable parse_mode if text contains t.me links to avoid Markdown parsing issues
+        parse_mode = "Markdown"
+        if "t.me/" in agent_response:
+            parse_mode = None
+
         # Retornar formato para Telegram
         return {
             "method": "sendMessage",
             "text": agent_response,
-            "parse_mode": "Markdown"
+            "parse_mode": parse_mode
         }
 
 
