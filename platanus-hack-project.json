@@ -1,4 +1,5 @@
 {
-  "project-name": "<FILL THIS>",
-  "project-description-spanish": "<FILL THIS>"
+  "project-name": "Memor.IA",
+  "project-description-spanish": "MemorIA es un bot de Telegram que permite guardar y organizar recuerdos (fotos y textos) mediante conversaciones naturales con una IA basada en Claude, sin usar comandos ni interfaces complejas. Puede crear eventos colaborativos, almacenar memorias multimedia, describir automáticamente imágenes y realizar búsquedas semánticas usando embeddings y pgvector. Construido con FastAPI, PostgreSQL, S3 y Docker, utiliza un sistema modular de tools que le permite ejecutar acciones según el contexto sin endpoints tradicionales. Es ideal para viajes, diarios personales, proyectos o compartir recuerdos entre varias personas.",
+  "deploy-url": "https://ph.berguecio.cl"
 }
