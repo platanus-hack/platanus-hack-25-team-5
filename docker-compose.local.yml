@@ -1,0 +1,122 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: postgres_db_local
+    environment:
+      POSTGRES_USER: memories_user
+      POSTGRES_PASSWORD: memories_pass
+      POSTGRES_DB: memories_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data_local:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U memories_user -d memories_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_queue_local
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_local:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis_commander_local
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fastapi_backend_local
+    environment:
+      DATABASE_URL: postgresql://memories_user:memories_pass@db:5432/memories_db
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    command: bash entrypoint.sh
+    depends_on:
+      db:
+        condition: service_healthy
+
+  telegram-bot:
+    build:
+      context: ./telegram-bot
+      dockerfile: Dockerfile
+    container_name: telegram_bot_local
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      API_URL: http://backend:8000/webhook
+    volumes:
+      - ./telegram-bot:/app
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  telegram-worker:
+    build:
+      context: ./telegram-bot
+      dockerfile: Dockerfile
+    container_name: telegram_worker_local
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      API_URL: http://backend:8000/webhook/batch
+    command: arq worker.WorkerSettings
+    volumes:
+      - ./telegram-bot:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    restart: unless-stopped
+
+  frontend:
+    image: node:18-alpine
+    container_name: frontend_local
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    command: sh -c "yarn install && yarn dev -H 0.0.0.0"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+
+volumes:
+  postgres_data_local:
+  redis_data_local:

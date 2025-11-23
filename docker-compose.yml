@@ -1,0 +1,144 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: memories_user
+      POSTGRES_PASSWORD: memories_pass
+      POSTGRES_DB: memories_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - webapp
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memories_user -d memories_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fastapi_backend
+    environment:
+      DATABASE_URL: postgresql://memories_user:memories_pass@db:5432/memories_db
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - ./backend:/app
+    command: bash entrypoint.sh
+    networks:
+      - webapp
+    depends_on:
+      db:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ph-api.rule=Host(`ph.berguecio.cl`) && (PathPrefix(`/webhook`) || PathPrefix(`/health`) || PathPrefix(`/docs`) || PathPrefix(`/openapi.json`) || PathPrefix(`/memories`) || PathPrefix(`/events`) || PathPrefix(`/search`) || PathPrefix(`/auth`)) "
+      - "traefik.http.routers.ph-api.entrypoints=websecure"
+      - "traefik.http.routers.ph-api.tls=true"
+      - "traefik.http.services.ph-api.loadbalancer.server.port=8000"
+      - "traefik.http.routers.ph-api.priority=10"
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_queue
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - webapp
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-insight:
+    image: redislabs/redisinsight:latest
+    container_name: redis_insight
+    ports:
+      - "8001:8001"
+    networks:
+      - webapp
+    depends_on:
+      - redis
+
+  telegram-bot:
+    build:
+      context: ./telegram-bot
+      dockerfile: Dockerfile
+    container_name: telegram_bot
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      API_URL: http://backend:8000/webhook
+    volumes:
+      - ./telegram-bot:/app
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - webapp
+    restart: unless-stopped
+
+  telegram-worker:
+    build:
+      context: ./telegram-bot
+      dockerfile: Dockerfile
+    container_name: telegram_worker
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      API_URL: http://backend:8000/webhook/batch
+    command: arq worker.WorkerSettings
+    volumes:
+      - ./telegram-bot:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    networks:
+      - webapp
+    restart: unless-stopped
+
+  frontend:
+    image: node:18-alpine
+    container_name: frontend
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NEXT_PUBLIC_API_URL=https://ph.berguecio.cl
+    command: sh -c "yarn install && yarn dev -H 0.0.0.0"
+    networks:
+      - webapp
+    depends_on:
+      - backend
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ph-frontend.rule=Host(`ph.berguecio.cl`) && PathPrefix(`/`)"
+      - "traefik.http.routers.ph-frontend.entrypoints=websecure"
+      - "traefik.http.routers.ph-frontend.tls=true"
+      - "traefik.http.services.ph-frontend.loadbalancer.server.port=3000"
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  webapp:
+    external: true

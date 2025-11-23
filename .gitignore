@@ -1,0 +1,42 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore all pycache directories
+**/__pycache__/
+
+# Backend
+backend/.Python
+backend/env/
+backend/venv/
+backend/.venv
+backend/app.db
+backend/app.db-journal
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/
+settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
+
+# Python
+.mypy_cache/
+
+/frontend/node_modules
